@@ -19,11 +19,23 @@ export function validateBody(requiredFields: string[]) {
 export function validateEmail(field: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const email = req.body[field];
-    // Simple email format check - deliberately permissive to avoid ReDoS
-    const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-    if (email && !emailRegex.test(email)) {
-      res.status(400).json({ success: false, error: `Invalid email format for field: ${field}` });
-      return;
+    // Validate email: one @, non-empty local part, domain with at least one dot
+    // Using indexOf/lastIndexOf instead of complex regex to avoid ReDoS
+    if (email) {
+      const atIdx = (email as string).indexOf('@');
+      const lastAtIdx = (email as string).lastIndexOf('@');
+      const dotAfterAt = atIdx > 0 ? (email as string).indexOf('.', atIdx + 2) : -1;
+      const hasSpaces = /\s/.test(email as string);
+      const isValid =
+        !hasSpaces &&
+        atIdx > 0 &&
+        atIdx === lastAtIdx &&
+        dotAfterAt > atIdx + 1 &&
+        dotAfterAt < (email as string).length - 1;
+      if (!isValid) {
+        res.status(400).json({ success: false, error: `Invalid email format for field: ${field}` });
+        return;
+      }
     }
     next();
   };

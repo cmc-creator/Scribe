@@ -60,9 +60,9 @@ router.get('/batches', authenticate, (req: AuthenticatedRequest, res: Response) 
   }
 });
 
-router.get('/batches/:batchId', authenticate, (_req: AuthenticatedRequest, res: Response) => {
+router.get('/batches/:batchId', authenticate, (req: AuthenticatedRequest, res: Response) => {
   try {
-    const records = distributionService.getBatchStatus(_req.params.batchId);
+    const records = distributionService.getBatchStatus(req.params.batchId);
     res.json({ success: true, data: records });
   } catch (err) {
     res.status(500).json({ success: false, error: (err as Error).message });

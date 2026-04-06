@@ -16,7 +16,7 @@ async function request<T>(
     headers: {
       'Content-Type': 'application/json',
       ...getAuthHeader(),
-      ...(options.headers as Record<string, string> ?? {}),
+      ...(options.headers ?? {}) as Record<string, string>,
     },
   });
   return response.json() as Promise<ApiResponse<T>>;

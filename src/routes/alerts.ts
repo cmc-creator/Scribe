@@ -1,10 +1,10 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth';
 import * as alertService from '../services/alertService';
 
 const router = Router();
 
-router.get('/', authenticate, (req: Request, res: Response) => {
+router.get('/', authenticate, (req: AuthenticatedRequest, res: Response) => {
   try {
     const daysAhead = parseInt((req.query.days as string) ?? '30', 10);
     const alerts = alertService.getExpiryAlerts(daysAhead);
@@ -14,7 +14,7 @@ router.get('/', authenticate, (req: Request, res: Response) => {
   }
 });
 
-router.get('/upcoming', authenticate, (req: Request, res: Response) => {
+router.get('/upcoming', authenticate, (req: AuthenticatedRequest, res: Response) => {
   try {
     const daysAhead = parseInt((req.query.days as string) ?? '7', 10);
     const alerts = alertService.getUpcomingExpirations(daysAhead);

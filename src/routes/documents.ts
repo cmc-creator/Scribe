@@ -96,12 +96,18 @@ router.post(
         res.status(400).json({ success: false, error: 'No file uploaded' });
         return;
       }
-      const fileBuffer = fs.readFileSync(req.file.path);
+      // Ensure the resolved path is within the uploads directory to prevent path traversal
+      const resolvedPath = path.resolve(req.file.path);
+      if (!resolvedPath.startsWith(UPLOAD_DIR + path.sep) && resolvedPath !== UPLOAD_DIR) {
+        res.status(400).json({ success: false, error: 'Invalid file path' });
+        return;
+      }
+      const fileBuffer = fs.readFileSync(resolvedPath);
       const contentHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
       const version = documentService.createDocumentVersion(
         req.params.id,
-        req.file.path,
+        resolvedPath,
         req.user?.id ?? 'unknown',
         {
           file_size: req.file.size,
