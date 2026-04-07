@@ -87,7 +87,7 @@ export async function createDocument(input: CreateDocumentInput): Promise<Docume
 
   await logAudit(db, 'document', id, 'created', input.owner_id, { title: input.title });
 
-  return getDocument(id) as Promise<Document>;
+  return await getDocument(id) as Document;
 }
 
 export async function updateDocument(id: string, input: UpdateDocumentInput, performedBy?: string): Promise<Document | null> {
@@ -113,7 +113,7 @@ export async function updateDocument(id: string, input: UpdateDocumentInput, per
 
   await logAudit(db, 'document', id, 'updated', performedBy, input);
 
-  return getDocument(id);
+  return await getDocument(id);
 }
 
 export async function archiveDocument(id: string, performedBy?: string): Promise<boolean> {
