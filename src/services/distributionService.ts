@@ -24,50 +24,53 @@ export interface SendDocumentInput {
   batch_id?: string;
 }
 
-export function sendDocument(input: SendDocumentInput): DistributionRecord {
+export async function sendDocument(input: SendDocumentInput): Promise<DistributionRecord> {
   const db = getDatabase();
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
-  db.prepare(`
-    INSERT INTO distribution_records
-      (id, document_id, document_version_id, sender_id, batch_id, recipient_email, recipient_name, status, sent_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'sent', ?)
-  `).run(
-    id,
-    input.document_id,
-    input.document_version_id,
-    input.sender_id,
-    input.batch_id ?? null,
-    input.recipient_email,
-    input.recipient_name ?? null,
-    now
-  );
+  await db.execute({
+    sql: `INSERT INTO distribution_records
+            (id, document_id, document_version_id, sender_id, batch_id, recipient_email, recipient_name, status, sent_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'sent', ?)`,
+    args: [
+      id,
+      input.document_id,
+      input.document_version_id,
+      input.sender_id,
+      input.batch_id ?? null,
+      input.recipient_email,
+      input.recipient_name ?? null,
+      now,
+    ],
+  });
 
-  db.prepare(`
-    INSERT INTO audit_logs (id, entity_type, entity_id, action, performed_by, details)
-    VALUES (?, 'distribution', ?, 'sent', ?, ?)
-  `).run(
-    crypto.randomUUID(),
-    id,
-    input.sender_id,
-    JSON.stringify({ recipient: input.recipient_email })
-  );
+  await db.execute({
+    sql: `INSERT INTO audit_logs (id, entity_type, entity_id, action, performed_by, details)
+          VALUES (?, 'distribution', ?, 'sent', ?, ?)`,
+    args: [
+      crypto.randomUUID(),
+      id,
+      input.sender_id,
+      JSON.stringify({ recipient: input.recipient_email }),
+    ],
+  });
 
-  return db.prepare('SELECT * FROM distribution_records WHERE id = ?').get(id) as DistributionRecord;
+  const result = await db.execute({ sql: 'SELECT * FROM distribution_records WHERE id = ?', args: [id] });
+  return result.rows[0] as unknown as DistributionRecord;
 }
 
-export function bulkDistribute(
+export async function bulkDistribute(
   documentId: string,
   documentVersionId: string,
   senderId: string,
   recipients: { email: string; name?: string }[]
-): { batch_id: string; records: DistributionRecord[] } {
+): Promise<{ batch_id: string; records: DistributionRecord[] }> {
   const batchId = crypto.randomUUID();
   const records: DistributionRecord[] = [];
 
   for (const recipient of recipients) {
-    const record = sendDocument({
+    const record = await sendDocument({
       document_id: documentId,
       document_version_id: documentVersionId,
       sender_id: senderId,
@@ -81,11 +84,11 @@ export function bulkDistribute(
   return { batch_id: batchId, records };
 }
 
-export function getDistributionBatches(senderId?: string): {
+export async function getDistributionBatches(senderId?: string): Promise<{
   batch_id: string;
   sent_at: string;
   total: number;
-}[] {
+}[]> {
   const db = getDatabase();
   let query = `
     SELECT batch_id, MIN(sent_at) as sent_at, COUNT(*) as total
@@ -100,12 +103,15 @@ export function getDistributionBatches(senderId?: string): {
   }
   query += ' GROUP BY batch_id ORDER BY sent_at DESC';
 
-  return db.prepare(query).all(...params) as { batch_id: string; sent_at: string; total: number }[];
+  const result = await db.execute({ sql: query, args: params });
+  return result.rows as unknown as { batch_id: string; sent_at: string; total: number }[];
 }
 
-export function getBatchStatus(batchId: string): DistributionRecord[] {
+export async function getBatchStatus(batchId: string): Promise<DistributionRecord[]> {
   const db = getDatabase();
-  return db.prepare(
-    'SELECT * FROM distribution_records WHERE batch_id = ? ORDER BY sent_at ASC'
-  ).all(batchId) as DistributionRecord[];
+  const result = await db.execute({
+    sql: 'SELECT * FROM distribution_records WHERE batch_id = ? ORDER BY sent_at ASC',
+    args: [batchId],
+  });
+  return result.rows as unknown as DistributionRecord[];
 }

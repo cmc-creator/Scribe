@@ -1,9 +1,9 @@
 import { getDatabase } from './database';
 
-export function initializeSchema(): void {
+export async function initializeSchema(): Promise<void> {
   const db = getDatabase();
 
-  db.exec(`
+  await db.executeMultiple(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,

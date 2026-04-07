@@ -1,14 +1,15 @@
-import Database from 'better-sqlite3';
+import { createClient, Client } from '@libsql/client';
 
-const DB_PATH = process.env.DB_PATH ?? './nyxscribe.db';
+// For Turso cloud: set LIBSQL_URL (e.g. libsql://your-db.turso.io) and LIBSQL_AUTH_TOKEN
+// For local dev: LIBSQL_URL defaults to a local SQLite file
+const DB_URL = process.env.LIBSQL_URL ?? 'file:./nyxscribe.db';
+const DB_AUTH_TOKEN = process.env.LIBSQL_AUTH_TOKEN;
 
-let db: Database.Database | null = null;
+let db: Client | null = null;
 
-export function getDatabase(): Database.Database {
+export function getDatabase(): Client {
   if (!db) {
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
-    db.pragma('foreign_keys = ON');
+    db = createClient({ url: DB_URL, authToken: DB_AUTH_TOKEN });
   }
   return db;
 }

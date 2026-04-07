@@ -19,8 +19,11 @@ import { Response } from 'express';
 
 const app = express();
 
-// Initialize database schema
-initializeSchema();
+// Begin schema initialization immediately; requests wait for it via middleware below
+const schemaReady: Promise<void> = initializeSchema().catch((err) => {
+  console.error('[NyxScribe] Schema initialization failed:', err);
+  throw err;
+});
 
 // Middleware
 app.use(helmet());
@@ -28,6 +31,11 @@ app.use(cors());
 app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Ensure DB schema is ready before handling any request
+app.use((_req, _res, next) => {
+  schemaReady.then(() => next()).catch(next);
+});
 
 // Rate limiting
 const apiLimiter = rateLimit({
@@ -57,9 +65,9 @@ app.use('/api/distribution', distributionRoutes);
 app.use('/api/citadel', citadelRoutes);
 
 // Document signatures shortcut route
-app.get('/api/documents/:id/signatures', authenticate, (req: AuthenticatedRequest, res: Response) => {
+app.get('/api/documents/:id/signatures', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const sigs = getDocumentSignatures(req.params.id);
+    const sigs = await getDocumentSignatures(req.params.id);
     res.json({ success: true, data: sigs });
   } catch (err) {
     res.status(500).json({ success: false, error: (err as Error).message });

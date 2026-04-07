@@ -1,35 +1,37 @@
 import crypto from 'crypto';
+import { Client } from '@libsql/client';
 import { getDatabase } from '../db/database';
 import { Document, DocumentVersion, CreateDocumentInput, UpdateDocumentInput } from '../models/document';
 import { AuditLog } from '../models/auditLog';
 
-function logAudit(
-  db: ReturnType<typeof getDatabase>,
+async function logAudit(
+  db: Client,
   entityType: AuditLog['entity_type'],
   entityId: string,
   action: string,
   performedBy?: string,
   details?: object
-): void {
-  db.prepare(`
-    INSERT INTO audit_logs (id, entity_type, entity_id, action, performed_by, details)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(
-    crypto.randomUUID(),
-    entityType,
-    entityId,
-    action,
-    performedBy ?? null,
-    details ? JSON.stringify(details) : null
-  );
+): Promise<void> {
+  await db.execute({
+    sql: `INSERT INTO audit_logs (id, entity_type, entity_id, action, performed_by, details)
+          VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [
+      crypto.randomUUID(),
+      entityType,
+      entityId,
+      action,
+      performedBy ?? null,
+      details ? JSON.stringify(details) : null,
+    ],
+  });
 }
 
-export function listDocuments(filters: {
+export async function listDocuments(filters: {
   status?: string;
   category?: string;
   owner_id?: string;
   search?: string;
-} = {}): Document[] {
+} = {}): Promise<Document[]> {
   const db = getDatabase();
   let query = 'SELECT * FROM documents WHERE 1=1';
   const params: (string | number)[] = [];
@@ -52,42 +54,45 @@ export function listDocuments(filters: {
   }
 
   query += ' ORDER BY updated_at DESC';
-  return db.prepare(query).all(...params) as Document[];
+  const result = await db.execute({ sql: query, args: params });
+  return result.rows as unknown as Document[];
 }
 
-export function getDocument(id: string): Document | null {
+export async function getDocument(id: string): Promise<Document | null> {
   const db = getDatabase();
-  return (db.prepare('SELECT * FROM documents WHERE id = ?').get(id) ?? null) as Document | null;
+  const result = await db.execute({ sql: 'SELECT * FROM documents WHERE id = ?', args: [id] });
+  return (result.rows[0] as unknown as Document) ?? null;
 }
 
-export function createDocument(input: CreateDocumentInput): Document {
+export async function createDocument(input: CreateDocumentInput): Promise<Document> {
   const db = getDatabase();
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
-  db.prepare(`
-    INSERT INTO documents (id, title, description, category, owner_id, expires_at, tags, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    id,
-    input.title,
-    input.description ?? null,
-    input.category ?? null,
-    input.owner_id,
-    input.expires_at ?? null,
-    input.tags ?? null,
-    now,
-    now
-  );
+  await db.execute({
+    sql: `INSERT INTO documents (id, title, description, category, owner_id, expires_at, tags, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      id,
+      input.title,
+      input.description ?? null,
+      input.category ?? null,
+      input.owner_id,
+      input.expires_at ?? null,
+      input.tags ?? null,
+      now,
+      now,
+    ],
+  });
 
-  logAudit(db, 'document', id, 'created', input.owner_id, { title: input.title });
+  await logAudit(db, 'document', id, 'created', input.owner_id, { title: input.title });
 
-  return getDocument(id) as Document;
+  return getDocument(id) as Promise<Document>;
 }
 
-export function updateDocument(id: string, input: UpdateDocumentInput, performedBy?: string): Document | null {
+export async function updateDocument(id: string, input: UpdateDocumentInput, performedBy?: string): Promise<Document | null> {
   const db = getDatabase();
-  const doc = getDocument(id);
+  const doc = await getDocument(id);
   if (!doc) return null;
 
   const updates: string[] = [];
@@ -104,27 +109,28 @@ export function updateDocument(id: string, input: UpdateDocumentInput, performed
   params.push(new Date().toISOString());
   params.push(id);
 
-  db.prepare(`UPDATE documents SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+  await db.execute({ sql: `UPDATE documents SET ${updates.join(', ')} WHERE id = ?`, args: params });
 
-  logAudit(db, 'document', id, 'updated', performedBy, input);
+  await logAudit(db, 'document', id, 'updated', performedBy, input);
 
   return getDocument(id);
 }
 
-export function archiveDocument(id: string, performedBy?: string): boolean {
+export async function archiveDocument(id: string, performedBy?: string): Promise<boolean> {
   const db = getDatabase();
-  const result = db.prepare(
-    "UPDATE documents SET status = 'archived', updated_at = ? WHERE id = ?"
-  ).run(new Date().toISOString(), id);
+  const result = await db.execute({
+    sql: "UPDATE documents SET status = 'archived', updated_at = ? WHERE id = ?",
+    args: [new Date().toISOString(), id],
+  });
 
-  if (result.changes > 0) {
-    logAudit(db, 'document', id, 'archived', performedBy);
+  if (result.rowsAffected > 0) {
+    await logAudit(db, 'document', id, 'archived', performedBy);
     return true;
   }
   return false;
 }
 
-export function createDocumentVersion(
+export async function createDocumentVersion(
   documentId: string,
   filePath: string,
   createdBy: string,
@@ -134,42 +140,48 @@ export function createDocumentVersion(
     content_hash?: string;
     change_notes?: string;
   } = {}
-): DocumentVersion {
+): Promise<DocumentVersion> {
   const db = getDatabase();
-  const doc = getDocument(documentId);
+  const doc = await getDocument(documentId);
   if (!doc) throw new Error('Document not found');
 
   const newVersionNumber = doc.current_version + 1;
   const versionId = crypto.randomUUID();
   const now = new Date().toISOString();
 
-  db.prepare(`
-    INSERT INTO document_versions (id, document_id, version_number, file_path, file_size, mime_type, content_hash, change_notes, created_by, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    versionId,
-    documentId,
-    newVersionNumber,
-    filePath,
-    opts.file_size ?? null,
-    opts.mime_type ?? null,
-    opts.content_hash ?? null,
-    opts.change_notes ?? null,
-    createdBy,
-    now
-  );
+  await db.execute({
+    sql: `INSERT INTO document_versions (id, document_id, version_number, file_path, file_size, mime_type, content_hash, change_notes, created_by, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      versionId,
+      documentId,
+      newVersionNumber,
+      filePath,
+      opts.file_size ?? null,
+      opts.mime_type ?? null,
+      opts.content_hash ?? null,
+      opts.change_notes ?? null,
+      createdBy,
+      now,
+    ],
+  });
 
-  db.prepare("UPDATE documents SET current_version = ?, updated_at = ? WHERE id = ?")
-    .run(newVersionNumber, now, documentId);
+  await db.execute({
+    sql: 'UPDATE documents SET current_version = ?, updated_at = ? WHERE id = ?',
+    args: [newVersionNumber, now, documentId],
+  });
 
-  logAudit(db, 'document', documentId, 'version_created', createdBy, { version: newVersionNumber });
+  await logAudit(db, 'document', documentId, 'version_created', createdBy, { version: newVersionNumber });
 
-  return db.prepare('SELECT * FROM document_versions WHERE id = ?').get(versionId) as DocumentVersion;
+  const vResult = await db.execute({ sql: 'SELECT * FROM document_versions WHERE id = ?', args: [versionId] });
+  return vResult.rows[0] as unknown as DocumentVersion;
 }
 
-export function getDocumentVersions(documentId: string): DocumentVersion[] {
+export async function getDocumentVersions(documentId: string): Promise<DocumentVersion[]> {
   const db = getDatabase();
-  return db.prepare(
-    'SELECT * FROM document_versions WHERE document_id = ? ORDER BY version_number DESC'
-  ).all(documentId) as DocumentVersion[];
+  const result = await db.execute({
+    sql: 'SELECT * FROM document_versions WHERE document_id = ? ORDER BY version_number DESC',
+    args: [documentId],
+  });
+  return result.rows as unknown as DocumentVersion[];
 }

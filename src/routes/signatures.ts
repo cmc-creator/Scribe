@@ -10,9 +10,9 @@ router.post(
   authenticate,
   validateBody(['document_id', 'document_version_id', 'requester_id', 'recipient_email', 'recipient_name']),
   validateEmail('recipient_email'),
-  (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const request = signatureService.createSignatureRequest(req.body);
+      const request = await signatureService.createSignatureRequest(req.body);
       res.status(201).json({ success: true, data: request });
     } catch (err) {
       res.status(500).json({ success: false, error: (err as Error).message });
@@ -20,9 +20,9 @@ router.post(
   }
 );
 
-router.get('/:id', authenticate, (req: AuthenticatedRequest, res: Response) => {
+router.get('/:id', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const request = signatureService.getSignatureRequest(req.params.id);
+    const request = await signatureService.getSignatureRequest(req.params.id);
     if (!request) {
       res.status(404).json({ success: false, error: 'Signature request not found' });
       return;
@@ -33,9 +33,9 @@ router.get('/:id', authenticate, (req: AuthenticatedRequest, res: Response) => {
   }
 });
 
-router.post('/:id/sign', validateBody(['signature_data']), (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/sign', validateBody(['signature_data']), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const updated = signatureService.submitSignature(
+    const updated = await signatureService.submitSignature(
       req.params.id,
       req.body.signature_data,
       req.ip ?? undefined,
@@ -51,9 +51,9 @@ router.post('/:id/sign', validateBody(['signature_data']), (req: AuthenticatedRe
   }
 });
 
-router.post('/:id/decline', (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/decline', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const updated = signatureService.declineSignatureRequest(req.params.id, req.ip ?? undefined);
+    const updated = await signatureService.declineSignatureRequest(req.params.id, req.ip ?? undefined);
     if (!updated) {
       res.status(400).json({ success: false, error: 'Signature request not found or not pending' });
       return;
