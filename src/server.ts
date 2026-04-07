@@ -3,6 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
+import fs from 'fs';
 
 import { initializeSchema } from './db/schema';
 import documentRoutes from './routes/documents';
@@ -69,9 +71,24 @@ app.get('/health', (_req, res) => {
   res.json({ success: true, data: { status: 'ok', service: 'NyxScribe' } });
 });
 
-// 404 handler
-app.use((_req, res) => {
-  res.status(404).json({ success: false, error: 'Route not found' });
+// Serve static frontend files
+const frontendBuildPath = path.join(__dirname, '..', 'frontend', 'build');
+if (!fs.existsSync(frontendBuildPath)) {
+  console.warn(`[NyxScribe] Frontend build directory not found at ${frontendBuildPath}. Run 'npm run frontend:build' to generate it.`);
+}
+app.use(express.static(frontendBuildPath));
+
+// Serve frontend for non-API routes (client-side routing); return 404 for unknown API routes
+app.use((req, res) => {
+  if (req.path.startsWith('/api/')) {
+    res.status(404).json({ success: false, error: 'Route not found' });
+  } else {
+    res.sendFile(path.join(frontendBuildPath, 'index.html'), (err) => {
+      if (err) {
+        res.status(503).json({ success: false, error: 'Frontend is not available. Please build the frontend first.' });
+      }
+    });
+  }
 });
 
 export default app;
