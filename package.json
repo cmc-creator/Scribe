@@ -4,7 +4,7 @@
   "description": "NyxScribe - Document management and e-signature platform",
   "main": "dist/app.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "npm --prefix frontend ci && tsc -p tsconfig.json && npm --prefix frontend run build",
     "start": "node dist/app.js",
     "dev": "ts-node src/app.ts",
     "test": "jest --forceExit --passWithNoTests",
