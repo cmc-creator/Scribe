@@ -36,41 +36,51 @@ export async function checkCompliance(documentId: string): Promise<CitadelRecord
 
   const apiResult = await callCitadelApi(documentId);
 
-  const existing = db.prepare(
-    'SELECT * FROM citadel_records WHERE document_id = ?'
-  ).get(documentId) as CitadelRecord | undefined;
+  const existingResult = await db.execute({
+    sql: 'SELECT * FROM citadel_records WHERE document_id = ?',
+    args: [documentId],
+  });
+  const existing = existingResult.rows[0] as unknown as CitadelRecord | undefined;
 
   if (existing) {
-    db.prepare(`
-      UPDATE citadel_records
-      SET citadel_ref = ?, compliance_status = ?, last_check_at = ?, next_check_at = ?, compliance_notes = ?
-      WHERE document_id = ?
-    `).run(apiResult.ref, apiResult.status, now, nextCheck.toISOString(), apiResult.notes, documentId);
+    await db.execute({
+      sql: `UPDATE citadel_records
+            SET citadel_ref = ?, compliance_status = ?, last_check_at = ?, next_check_at = ?, compliance_notes = ?
+            WHERE document_id = ?`,
+      args: [apiResult.ref, apiResult.status, now, nextCheck.toISOString(), apiResult.notes, documentId],
+    });
   } else {
     const id = crypto.randomUUID();
-    db.prepare(`
-      INSERT INTO citadel_records (id, document_id, citadel_ref, compliance_status, last_check_at, next_check_at, compliance_notes, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, documentId, apiResult.ref, apiResult.status, now, nextCheck.toISOString(), apiResult.notes, now);
+    await db.execute({
+      sql: `INSERT INTO citadel_records (id, document_id, citadel_ref, compliance_status, last_check_at, next_check_at, compliance_notes, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [id, documentId, apiResult.ref, apiResult.status, now, nextCheck.toISOString(), apiResult.notes, now],
+    });
   }
 
-  return db.prepare(
-    'SELECT * FROM citadel_records WHERE document_id = ?'
-  ).get(documentId) as CitadelRecord;
+  const result = await db.execute({
+    sql: 'SELECT * FROM citadel_records WHERE document_id = ?',
+    args: [documentId],
+  });
+  return result.rows[0] as unknown as CitadelRecord;
 }
 
-export function getComplianceStatus(documentId: string): CitadelRecord | null {
+export async function getComplianceStatus(documentId: string): Promise<CitadelRecord | null> {
   const db = getDatabase();
-  return (db.prepare(
-    'SELECT * FROM citadel_records WHERE document_id = ?'
-  ).get(documentId) ?? null) as CitadelRecord | null;
+  const result = await db.execute({
+    sql: 'SELECT * FROM citadel_records WHERE document_id = ?',
+    args: [documentId],
+  });
+  return (result.rows[0] as unknown as CitadelRecord) ?? null;
 }
 
 export async function syncAllDocuments(): Promise<{ synced: number; errors: number }> {
   const db = getDatabase();
-  const documents = db.prepare(
-    "SELECT id FROM documents WHERE status NOT IN ('archived')"
-  ).all() as { id: string }[];
+  const result = await db.execute({
+    sql: "SELECT id FROM documents WHERE status NOT IN ('archived')",
+    args: [],
+  });
+  const documents = result.rows as unknown as { id: string }[];
 
   let synced = 0;
   let errors = 0;

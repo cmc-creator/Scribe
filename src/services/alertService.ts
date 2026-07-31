@@ -9,22 +9,25 @@ export interface ExpiryAlert {
   days_until_expiry: number;
 }
 
-export function getExpiryAlerts(daysAhead = 30): ExpiryAlert[] {
+export async function getExpiryAlerts(daysAhead = 30): Promise<ExpiryAlert[]> {
   const db = getDatabase();
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() + daysAhead);
   const now = new Date().toISOString();
   const cutoffStr = cutoff.toISOString();
 
-  const docs = db.prepare(`
-    SELECT id, title, status, expires_at
-    FROM documents
-    WHERE expires_at IS NOT NULL
-      AND expires_at > ?
-      AND expires_at <= ?
-      AND status NOT IN ('archived', 'expired')
-    ORDER BY expires_at ASC
-  `).all(now, cutoffStr) as Pick<Document, 'id' | 'title' | 'status' | 'expires_at'>[];
+  const result = await db.execute({
+    sql: `SELECT id, title, status, expires_at
+          FROM documents
+          WHERE expires_at IS NOT NULL
+            AND expires_at > ?
+            AND expires_at <= ?
+            AND status NOT IN ('archived', 'expired')
+          ORDER BY expires_at ASC`,
+    args: [now, cutoffStr],
+  });
+
+  const docs = result.rows as unknown as Pick<Document, 'id' | 'title' | 'status' | 'expires_at'>[];
 
   return docs.map((doc) => {
     const expiresAt = new Date(doc.expires_at as string);
@@ -41,25 +44,26 @@ export function getExpiryAlerts(daysAhead = 30): ExpiryAlert[] {
   });
 }
 
-export function getUpcomingExpirations(daysAhead = 7): ExpiryAlert[] {
+export async function getUpcomingExpirations(daysAhead = 7): Promise<ExpiryAlert[]> {
   return getExpiryAlerts(daysAhead);
 }
 
-export function markExpiredDocuments(): number {
+export async function markExpiredDocuments(): Promise<number> {
   const db = getDatabase();
   const now = new Date().toISOString();
-  const result = db.prepare(`
-    UPDATE documents
-    SET status = 'expired', updated_at = ?
-    WHERE expires_at IS NOT NULL AND expires_at < ? AND status = 'active'
-  `).run(now, now);
-  return result.changes;
+  const result = await db.execute({
+    sql: `UPDATE documents
+          SET status = 'expired', updated_at = ?
+          WHERE expires_at IS NOT NULL AND expires_at < ? AND status = 'active'`,
+    args: [now, now],
+  });
+  return result.rowsAffected;
 }
 
-export function acknowledgeAlert(documentId: string): boolean {
+export async function acknowledgeAlert(documentId: string): Promise<boolean> {
   const db = getDatabase();
-  const doc = db.prepare('SELECT id FROM documents WHERE id = ?').get(documentId);
-  if (!doc) return false;
+  const result = await db.execute({ sql: 'SELECT id FROM documents WHERE id = ?', args: [documentId] });
+  if (result.rows.length === 0) return false;
   // In a real system this would persist the acknowledgment; for now just validates existence
   return true;
 }

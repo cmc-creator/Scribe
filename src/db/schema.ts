@@ -1,15 +1,15 @@
 import { getDatabase } from './database';
 
-export function initializeSchema(): void {
+export async function initializeSchema(): Promise<void> {
   const db = getDatabase();
 
-  db.exec(`
+  await db.executeMultiple(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'user',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS documents (
@@ -20,9 +20,9 @@ export function initializeSchema(): void {
       owner_id TEXT NOT NULL,
       current_version INTEGER DEFAULT 1,
       status TEXT DEFAULT 'draft',
-      expires_at DATETIME,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       tags TEXT,
       FOREIGN KEY (owner_id) REFERENCES users(id)
     );
@@ -37,7 +37,7 @@ export function initializeSchema(): void {
       content_hash TEXT,
       change_notes TEXT,
       created_by TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (document_id) REFERENCES documents(id),
       FOREIGN KEY (created_by) REFERENCES users(id)
     );
@@ -51,12 +51,12 @@ export function initializeSchema(): void {
       recipient_name TEXT NOT NULL,
       status TEXT DEFAULT 'pending',
       message TEXT,
-      expires_at DATETIME,
-      signed_at DATETIME,
+      expires_at TIMESTAMPTZ,
+      signed_at TIMESTAMPTZ,
       signature_data TEXT,
       ip_address TEXT,
       user_agent TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (document_id) REFERENCES documents(id),
       FOREIGN KEY (document_version_id) REFERENCES document_versions(id),
       FOREIGN KEY (requester_id) REFERENCES users(id)
@@ -71,9 +71,9 @@ export function initializeSchema(): void {
       recipient_email TEXT NOT NULL,
       recipient_name TEXT,
       status TEXT DEFAULT 'sent',
-      sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      delivered_at DATETIME,
-      opened_at DATETIME,
+      sent_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      delivered_at TIMESTAMPTZ,
+      opened_at TIMESTAMPTZ,
       FOREIGN KEY (document_id) REFERENCES documents(id),
       FOREIGN KEY (document_version_id) REFERENCES document_versions(id),
       FOREIGN KEY (sender_id) REFERENCES users(id)
@@ -87,7 +87,7 @@ export function initializeSchema(): void {
       performed_by TEXT,
       details TEXT,
       ip_address TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS citadel_records (
@@ -95,10 +95,10 @@ export function initializeSchema(): void {
       document_id TEXT NOT NULL,
       citadel_ref TEXT,
       compliance_status TEXT DEFAULT 'pending',
-      last_check_at DATETIME,
-      next_check_at DATETIME,
+      last_check_at TIMESTAMPTZ,
+      next_check_at TIMESTAMPTZ,
       compliance_notes TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (document_id) REFERENCES documents(id)
     );
   `);

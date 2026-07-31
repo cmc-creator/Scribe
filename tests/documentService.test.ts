@@ -1,17 +1,10 @@
-import Database from 'better-sqlite3';
-
-// Use in-memory database for tests
-process.env.DB_PATH = ':memory:';
-
-// Re-import after setting env
 jest.mock('../src/db/database', () => {
-  const Database = require('better-sqlite3');
-  let db: InstanceType<typeof Database> | null = null;
+  const { createClient } = require('@libsql/client');
+  let db: ReturnType<typeof createClient> | null = null;
   return {
     getDatabase: () => {
       if (!db) {
-        db = new Database(':memory:');
-        db.pragma('foreign_keys = ON');
+        db = createClient({ url: ':memory:' });
       }
       return db;
     },
@@ -28,20 +21,21 @@ import { getDatabase } from '../src/db/database';
 import { initializeSchema } from '../src/db/schema';
 import * as documentService from '../src/services/documentService';
 
-beforeAll(() => {
-  initializeSchema();
+beforeAll(async () => {
+  await initializeSchema();
   // Seed a user
   const db = getDatabase();
-  db.prepare(`
-    INSERT INTO users (id, email, name, role) VALUES ('user-1', 'alice@example.com', 'Alice', 'admin')
-  `).run();
+  await db.execute({
+    sql: `INSERT INTO users (id, email, name, role) VALUES ('user-1', 'alice@example.com', 'Alice', 'admin')`,
+    args: [],
+  });
 });
 
 describe('documentService', () => {
   let docId: string;
 
-  test('createDocument creates a document', () => {
-    const doc = documentService.createDocument({
+  test('createDocument creates a document', async () => {
+    const doc = await documentService.createDocument({
       title: 'Test Document',
       description: 'A test doc',
       category: 'policy',
@@ -55,66 +49,67 @@ describe('documentService', () => {
     docId = doc.id;
   });
 
-  test('listDocuments returns created documents', () => {
-    const docs = documentService.listDocuments();
+  test('listDocuments returns created documents', async () => {
+    const docs = await documentService.listDocuments();
     expect(docs.length).toBeGreaterThan(0);
     expect(docs.some((d) => d.id === docId)).toBe(true);
   });
 
-  test('listDocuments filters by status', () => {
-    const docs = documentService.listDocuments({ status: 'draft' });
+  test('listDocuments filters by status', async () => {
+    const docs = await documentService.listDocuments({ status: 'draft' });
     expect(docs.every((d) => d.status === 'draft')).toBe(true);
   });
 
-  test('getDocument retrieves by id', () => {
-    const doc = documentService.getDocument(docId);
+  test('getDocument retrieves by id', async () => {
+    const doc = await documentService.getDocument(docId);
     expect(doc).not.toBeNull();
     expect(doc!.id).toBe(docId);
   });
 
-  test('getDocument returns null for unknown id', () => {
-    const doc = documentService.getDocument('nonexistent-id');
+  test('getDocument returns null for unknown id', async () => {
+    const doc = await documentService.getDocument('nonexistent-id');
     expect(doc).toBeNull();
   });
 
-  test('updateDocument updates fields', () => {
-    const updated = documentService.updateDocument(docId, { title: 'Updated Title', status: 'active' });
+  test('updateDocument updates fields', async () => {
+    const updated = await documentService.updateDocument(docId, { title: 'Updated Title', status: 'active' });
     expect(updated).not.toBeNull();
     expect(updated!.title).toBe('Updated Title');
     expect(updated!.status).toBe('active');
   });
 
-  test('updateDocument returns null for unknown id', () => {
-    const result = documentService.updateDocument('nonexistent', { title: 'X' });
+  test('updateDocument returns null for unknown id', async () => {
+    const result = await documentService.updateDocument('nonexistent', { title: 'X' });
     expect(result).toBeNull();
   });
 
-  test('archiveDocument archives a document', () => {
-    const archived = documentService.archiveDocument(docId);
+  test('archiveDocument archives a document', async () => {
+    const archived = await documentService.archiveDocument(docId);
     expect(archived).toBe(true);
-    const doc = documentService.getDocument(docId);
+    const doc = await documentService.getDocument(docId);
     expect(doc!.status).toBe('archived');
   });
 
-  test('archiveDocument returns false for unknown id', () => {
-    const result = documentService.archiveDocument('nonexistent');
+  test('archiveDocument returns false for unknown id', async () => {
+    const result = await documentService.archiveDocument('nonexistent');
     expect(result).toBe(false);
   });
 
-  test('getDocumentVersions returns versions', () => {
+  test('getDocumentVersions returns versions', async () => {
     // Create a fresh doc for version testing
     const db = getDatabase();
-    const vDoc = documentService.createDocument({
+    const vDoc = await documentService.createDocument({
       title: 'Version Test Doc',
       owner_id: 'user-1',
     });
     // Insert a base version
-    db.prepare(`
-      INSERT INTO document_versions (id, document_id, version_number, file_path, created_by)
-      VALUES ('ver-1', ?, 1, '/uploads/test.pdf', 'user-1')
-    `).run(vDoc.id);
+    await db.execute({
+      sql: `INSERT INTO document_versions (id, document_id, version_number, file_path, created_by)
+            VALUES ('ver-1', ?, 1, '/uploads/test.pdf', 'user-1')`,
+      args: [vDoc.id],
+    });
 
-    const versions = documentService.getDocumentVersions(vDoc.id);
+    const versions = await documentService.getDocumentVersions(vDoc.id);
     expect(versions.length).toBeGreaterThanOrEqual(1);
   });
 });
