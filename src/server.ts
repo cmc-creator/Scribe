@@ -7,6 +7,7 @@ import path from 'path';
 import fs from 'fs';
 
 import { initializeSchema } from './db/schema';
+import authRoutes from './routes/auth';
 import documentRoutes from './routes/documents';
 import signatureRoutes from './routes/signatures';
 import alertRoutes from './routes/alerts';
@@ -58,6 +59,7 @@ app.use('/api/', apiLimiter);
 app.use('/api/documents/:id/versions', uploadLimiter);
 
 // Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/signatures', signatureRoutes);
 app.use('/api/alerts', alertRoutes);

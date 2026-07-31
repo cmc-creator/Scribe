@@ -9,6 +9,7 @@ export async function initializeSchema(): Promise<void> {
       email TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'user',
+      password_hash TEXT,
       created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -102,4 +103,11 @@ export async function initializeSchema(): Promise<void> {
       FOREIGN KEY (document_id) REFERENCES documents(id)
     );
   `);
+
+  try {
+    await db.execute({ sql: 'ALTER TABLE users ADD COLUMN password_hash TEXT', args: [] });
+  } catch (error) {
+    const message = String(error).toLowerCase();
+    if (!message.includes('duplicate column') && !message.includes('already exists')) throw error;
+  }
 }
