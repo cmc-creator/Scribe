@@ -1,11 +1,11 @@
 import crypto from 'crypto';
-import { Client } from '@libsql/client';
+import { SqlClient } from '../db/database';
 import { getDatabase } from '../db/database';
 import { Document, DocumentVersion, CreateDocumentInput, UpdateDocumentInput } from '../models/document';
 import { AuditLog } from '../models/auditLog';
 
 async function logAudit(
-  db: Client,
+  db: SqlClient,
   entityType: AuditLog['entity_type'],
   entityId: string,
   action: string,
