@@ -6,12 +6,14 @@ import SignatureWorkflow from './components/SignatureWorkflow';
 import BulkDistribution from './components/BulkDistribution';
 import VersionHistory from './components/VersionHistory';
 import { Document } from './types';
+import AuthScreen from './components/AuthScreen';
 
 type Tab = 'documents' | 'upload' | 'alerts';
 
 const DEMO_USER_ID = 'demo-user';
 
 export default function App(): React.ReactElement {
+  const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem('token')));
   const [activeTab, setActiveTab] = useState<Tab>('documents');
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
   const [docView, setDocView] = useState<'signatures' | 'distribution' | 'versions' | null>(null);
@@ -25,6 +27,8 @@ export default function App(): React.ReactElement {
     setSelectedDoc(doc);
     setActiveTab('documents');
   }
+
+  if (!authenticated) return <AuthScreen onAuthenticated={() => setAuthenticated(true)} />;
 
   return (
     <div style={styles.app}>
