@@ -1,6 +1,6 @@
 import { ApiResponse, Document, DocumentVersion, SignatureRequest, ExpiryAlert, DistributionRecord } from '../types';
 
-const BASE_URL = process.env.REACT_APP_API_URL ?? 'http://localhost:3001/api';
+const BASE_URL = process.env.REACT_APP_API_URL ?? '/api';
 
 function getAuthHeader(): Record<string, string> {
   const token = localStorage.getItem('token');
