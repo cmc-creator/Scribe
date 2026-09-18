@@ -7,12 +7,14 @@ import BulkDistribution from './components/BulkDistribution';
 import VersionHistory from './components/VersionHistory';
 import { Document } from './types';
 import AuthScreen from './components/AuthScreen';
+import { getRuntimeConfig } from './config';
 
 type Tab = 'documents' | 'upload' | 'alerts';
 
 const DEMO_USER_ID = 'demo-user';
 
 export default function App(): React.ReactElement {
+  const { pagesStaticPreview } = getRuntimeConfig();
   const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem('token')));
   const [activeTab, setActiveTab] = useState<Tab>('documents');
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
@@ -26,6 +28,25 @@ export default function App(): React.ReactElement {
   function handleDocumentCreated(doc: Document): void {
     setSelectedDoc(doc);
     setActiveTab('documents');
+  }
+
+  if (pagesStaticPreview) {
+    return (
+      <main style={styles.preview}>
+        <section style={styles.previewCard}>
+          <h1 style={styles.title}>NyxScribe</h1>
+          <p style={styles.previewText}>
+            This GitHub Pages deployment publishes a static preview only.
+          </p>
+          <p style={styles.previewText}>
+            Sign-in, document uploads, and audit workflows require the Express API, database, and file storage available in the full-stack deployment.
+          </p>
+          <p style={styles.previewText}>
+            To connect this build to a live backend, set <code>REACT_APP_API_URL</code> during the frontend build.
+          </p>
+        </section>
+      </main>
+    );
   }
 
   if (!authenticated) return <AuthScreen onAuthenticated={() => setAuthenticated(true)} />;
@@ -104,6 +125,10 @@ export default function App(): React.ReactElement {
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  preview: { minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '24px', background: '#f8fafc', fontFamily: 'system-ui, sans-serif' },
+  previewCard: { width: 'min(680px, 100%)', display: 'grid', gap: '12px', padding: '32px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 8px 24px rgb(15 23 42 / 8%)' },
+  title: { margin: 0, color: '#1e293b', fontSize: '32px' },
+  previewText: { margin: 0, color: '#475569', lineHeight: 1.6 },
   app: { minHeight: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, sans-serif', background: '#f8fafc' },
   header: { background: '#1e293b', color: '#fff', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '60px' },
   brand: { display: 'flex', alignItems: 'center', gap: '8px' },

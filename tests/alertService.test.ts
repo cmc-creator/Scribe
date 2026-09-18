@@ -1,14 +1,15 @@
 jest.mock('../src/db/database', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { createClient } = require('@libsql/client');
   let db: ReturnType<typeof createClient> | null = null;
   return {
-    getDatabase: () => {
+    getDatabase: (): ReturnType<typeof createClient> => {
       if (!db) {
         db = createClient({ url: ':memory:' });
       }
       return db;
     },
-    closeDatabase: () => {},
+    closeDatabase: (): void => {},
   };
 });
 
@@ -16,7 +17,7 @@ import { getDatabase } from '../src/db/database';
 import { initializeSchema } from '../src/db/schema';
 import * as alertService from '../src/services/alertService';
 
-beforeAll(async () => {
+beforeAll(async (): Promise<void> => {
   await initializeSchema();
   const db = getDatabase();
   await db.execute({ sql: `INSERT INTO users (id, email, name, role) VALUES ('alert-user', 'alert@test.com', 'Alert User', 'user')`, args: [] });
