@@ -20,10 +20,12 @@ import { Response } from 'express';
 
 const app = express();
 
-// Begin schema initialization immediately; requests wait for it via middleware below
-const schemaReady: Promise<void> = initializeSchema().catch((err) => {
-  console.error('[NyxScribe] Schema initialization failed:', err);
-  throw err;
+// Initialize the database independently of frontend delivery. A temporary database
+// outage must not prevent the static application shell from loading.
+let schemaInitializationError: Error | undefined;
+const schemaReady: Promise<void> = initializeSchema().catch((err: unknown) => {
+  schemaInitializationError = err instanceof Error ? err : new Error(String(err));
+  console.error('[NyxScribe] Schema initialization failed:', schemaInitializationError);
 });
 
 // Middleware
@@ -33,9 +35,25 @@ app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Ensure DB schema is ready before handling any request
-app.use((_req, _res, next) => {
-  schemaReady.then(() => next()).catch(next);
+// Serve the frontend before any database-dependent middleware. The GitHub Pages
+// homepage setting emits /Scribe/static/... URLs, so retain that base path on Vercel.
+const frontendBuildPath = path.join(__dirname, '..', 'frontend', 'build');
+if (!fs.existsSync(frontendBuildPath)) {
+  console.warn(`[NyxScribe] Frontend build directory not found at ${frontendBuildPath}. Run 'npm run frontend:build' to generate it.`);
+}
+const serveFrontend = express.static(frontendBuildPath);
+app.use(serveFrontend);
+app.use('/Scribe', serveFrontend);
+
+// Only API requests require the database schema. Keep the API unavailable rather
+// than crashing the function when the database connection is temporarily down.
+app.use('/api', async (_req, res, next) => {
+  await schemaReady;
+  if (schemaInitializationError) {
+    res.status(503).json({ success: false, error: 'Database is temporarily unavailable. Please try again shortly.' });
+    return;
+  }
+  next();
 });
 
 // Rate limiting
@@ -80,13 +98,6 @@ app.get('/api/documents/:id/signatures', authenticate, async (req: Authenticated
 app.get('/health', (_req, res) => {
   res.json({ success: true, data: { status: 'ok', service: 'NyxScribe' } });
 });
-
-// Serve static frontend files
-const frontendBuildPath = path.join(__dirname, '..', 'frontend', 'build');
-if (!fs.existsSync(frontendBuildPath)) {
-  console.warn(`[NyxScribe] Frontend build directory not found at ${frontendBuildPath}. Run 'npm run frontend:build' to generate it.`);
-}
-app.use(express.static(frontendBuildPath));
 
 // Serve frontend for non-API routes (client-side routing); return 404 for unknown API routes
 app.use((req, res) => {
