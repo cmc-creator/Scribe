@@ -1,4 +1,5 @@
 import React, { FormEvent, useEffect, useState } from 'react';
+import { getRuntimeConfig } from '../config';
 
 interface Session {
   token: string;
@@ -10,27 +11,33 @@ interface Props {
 }
 
 export default function AuthScreen({ onAuthenticated }: Props): React.ReactElement {
+  const { apiBaseUrl } = getRuntimeConfig();
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [setupSecret, setSetupSecret] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [authUnavailable, setAuthUnavailable] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    fetch('/api/auth/setup-status')
+    fetch(`${apiBaseUrl}/auth/setup-status`)
       .then((response) => response.json())
       .then((result) => setNeedsSetup(Boolean(result.data?.needsSetup)))
-      .catch(() => setError('Authentication service is unavailable.'));
-  }, []);
+      .catch(() => {
+        setAuthUnavailable(true);
+        setNeedsSetup(false);
+        setError('Authentication service is unavailable. Configure REACT_APP_API_URL or use the full-stack deployment.');
+      });
+  }, [apiBaseUrl]);
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      const response = await fetch(needsSetup ? '/api/auth/setup' : '/api/auth/login', {
+      const response = await fetch(`${apiBaseUrl}${needsSetup ? '/auth/setup' : '/auth/login'}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(needsSetup ? { name, email, password, setupSecret } : { email, password }),
@@ -47,6 +54,13 @@ export default function AuthScreen({ onAuthenticated }: Props): React.ReactEleme
   }
 
   if (needsSetup === null) return <main style={styles.center}>Loading sign-in…</main>;
+  if (authUnavailable) {
+    return <main style={styles.center}><section style={styles.card}>
+      <h1 style={styles.title}>NyxScribe</h1>
+      <p style={styles.subtitle}>Authentication is unavailable in this deployment.</p>
+      <p style={styles.error}>{error}</p>
+    </section></main>;
+  }
 
   return <main style={styles.center}><form onSubmit={submit} style={styles.card}>
     <h1 style={styles.title}>NyxScribe</h1>

@@ -26,12 +26,19 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
         working-directory: frontend
 
       - name: Build
         run: npm run build
         working-directory: frontend
+        env:
+          REACT_APP_DEPLOY_TARGET: github-pages
+
+      - name: Prepare Pages artifact
+        run: |
+          cp frontend/build/index.html frontend/build/404.html
+          touch frontend/build/.nojekyll
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

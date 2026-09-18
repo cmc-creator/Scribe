@@ -1,14 +1,15 @@
 jest.mock('../src/db/database', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { createClient } = require('@libsql/client');
   let db: ReturnType<typeof createClient> | null = null;
   return {
-    getDatabase: () => {
+    getDatabase: (): ReturnType<typeof createClient> => {
       if (!db) {
         db = createClient({ url: ':memory:' });
       }
       return db;
     },
-    closeDatabase: () => {
+    closeDatabase: (): void => {
       if (db) {
         db.close();
         db = null;
@@ -24,7 +25,7 @@ import * as signatureService from '../src/services/signatureService';
 const TEST_DOC_ID = 'doc-sig-1';
 const TEST_VERSION_ID = 'ver-sig-1';
 
-beforeAll(async () => {
+beforeAll(async (): Promise<void> => {
   await initializeSchema();
   const db = getDatabase();
   await db.execute({ sql: `INSERT INTO users (id, email, name, role) VALUES ('user-sig-1', 'bob@example.com', 'Bob', 'manager')`, args: [] });

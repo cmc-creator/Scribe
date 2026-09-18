@@ -1,6 +1,7 @@
 import { ApiResponse, Document, DocumentVersion, SignatureRequest, ExpiryAlert, DistributionRecord } from '../types';
+import { getRuntimeConfig } from '../config';
 
-const BASE_URL = process.env.REACT_APP_API_URL ?? '/api';
+const { apiBaseUrl: BASE_URL } = getRuntimeConfig();
 
 function getAuthHeader(): Record<string, string> {
   const token = localStorage.getItem('token');

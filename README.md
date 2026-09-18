@@ -23,7 +23,8 @@ NyxScribe is a document management and e-signature platform built for compliance
 
 - **Backend**: Node.js + Express + TypeScript
 - **Frontend**: React + TypeScript
-- **Database**: SQLite (via `better-sqlite3`) — no external server required
+- **Database**: PostgreSQL (via Neon serverless)
+- **File Storage**: Vercel Blob
 - **Auth**: JWT (`jsonwebtoken`)
 - **Testing**: Jest + ts-jest
 - **Linting**: ESLint + Prettier
@@ -162,13 +163,21 @@ Tests cover all four service layers using in-memory SQLite:
 
 ---
 
+## Deployment
+
+- **Vercel** is the full-stack deployment target. `vercel.json` routes requests through the Express API in `/api/index.ts`, which is required for authentication, document uploads, signatures, and database access.
+- **GitHub Pages** deploys the static React build from `frontend/` via `.github/workflows/deploy.yml`. Because GitHub Pages cannot run the Node/Express API, the Pages build now renders a static deployment notice unless `REACT_APP_API_URL` is set to a live backend during the build.
+- If you want a GitHub Pages build to talk to a live backend, provide `REACT_APP_API_URL=https://your-api-host` when building `frontend/`.
+
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `3001` | Server port |
-| `DB_PATH` | `./nyxscribe.db` | SQLite database path |
+| `DATABASE_URL` | _required_ | Neon/Postgres connection string for the backend |
 | `JWT_SECRET` | `nyxscribe-dev-secret` | JWT signing secret (change in production!) |
+| `INITIAL_ADMIN_SETUP_SECRET` | unset | Required to create the first administrator account when the platform has no users |
+| `REACT_APP_API_URL` | `/api` | Frontend API origin; set this for static deployments that do not share the backend origin |
 
 ---
 
