@@ -2,6 +2,7 @@
   "name": "nyxscribe-frontend",
   "version": "1.0.0",
   "private": true,
+  "homepage": "https://cmc-creator.github.io/Scribe/",
   "dependencies": {
     "@types/node": "^20.11.30",
     "@types/react": "^18.2.73",
